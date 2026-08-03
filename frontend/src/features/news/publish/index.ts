@@ -1,0 +1,1 @@
+export { usePublishNews } from './usePublishNews'

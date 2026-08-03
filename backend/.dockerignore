@@ -1,0 +1,8 @@
+node_modules
+dist
+uploads
+.env
+.git
+src/__tests__
+jest.config.ts
+*.md

@@ -1,0 +1,1 @@
+export { NewsEditorWidget } from './NewsEditorWidget'

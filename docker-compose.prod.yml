@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: always
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    image: ghcr.io/bajlepka/winbd-backend:${BACKEND_TAG:-latest}
+    restart: always
+    env_file:
+      - ./backend.env
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - mongo
+
+  frontend:
+    image: ghcr.io/bajlepka/winbd-frontend:${FRONTEND_TAG:-latest}
+    restart: always
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:
+  uploads_data:
