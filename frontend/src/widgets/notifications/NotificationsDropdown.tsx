@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Bell } from 'lucide-react'
 
@@ -56,17 +57,39 @@ export function NotificationsDropdown() {
             {notifications.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">Нет уведомлений</p>
             ) : (
-              notifications.map((n) => (
-                <div key={n.id} className="border-b border-input px-4 py-3 last:border-0">
-                  <p className="text-sm font-medium">{n.message}</p>
-                  {n.newsTitle && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{n.newsTitle}</p>
-                  )}
-                  <p className="mt-1 text-[11px] text-muted-foreground/70">
-                    {formatDate(n.createdAt)}
-                  </p>
-                </div>
-              ))
+              notifications.map((n) => {
+                const body = (
+                  <>
+                    <p className="text-sm font-medium">{n.message}</p>
+                    {n.newsTitle && (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{n.newsTitle}</p>
+                    )}
+                    <p className="mt-1 text-[11px] text-muted-foreground/70">
+                      {formatDate(n.createdAt)}
+                    </p>
+                  </>
+                )
+
+                // A deleted article has no page to link to.
+                if (n.type === 'news:deleted') {
+                  return (
+                    <div key={n.id} className="border-b border-input px-4 py-3 last:border-0">
+                      {body}
+                    </div>
+                  )
+                }
+
+                return (
+                  <DropdownMenu.Item key={n.id} asChild>
+                    <Link
+                      to={`/news/${n.newsId}`}
+                      className="block border-b border-input px-4 py-3 outline-none last:border-0 hover:bg-accent focus:bg-accent"
+                    >
+                      {body}
+                    </Link>
+                  </DropdownMenu.Item>
+                )
+              })
             )}
           </div>
         </DropdownMenu.Content>

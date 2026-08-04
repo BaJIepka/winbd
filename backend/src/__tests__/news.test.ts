@@ -1,5 +1,7 @@
 import request from 'supertest';
 import mongoose from 'mongoose';
+import fs from 'fs/promises';
+import path from 'path';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createApp } from '../createApp';
 
@@ -167,6 +169,60 @@ describe('PUT /api/news/:id', () => {
       .set('Authorization', `Bearer ${token}`)
       .field('title', 'Updated');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('PUT /api/news/:id - attachments', () => {
+  const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+
+  // Minimal valid 1x1 PNG (67 bytes)
+  const TINY_PNG = Buffer.from(
+    '89504e470d0a1a0a0000000d494844520000000100000001080200000090' +
+      '77533de000000000c4944415478016360f8cfc00000000200016dd204560' +
+      '0000000049454e44ae426082',
+    'hex'
+  );
+
+  beforeAll(async () => {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  });
+
+  afterEach(async () => {
+    const files = await fs.readdir(UPLOADS_DIR).catch(() => [] as string[]);
+    await Promise.all(files.map((f) => fs.unlink(path.join(UPLOADS_DIR, f)).catch(() => undefined)));
+  });
+
+  it('removes the last remaining attachment when the client resubmits an empty list', async () => {
+    const created = await request(app)
+      .post('/api/news')
+      .set('Authorization', `Bearer ${token}`)
+      .field('title', 'With attachment')
+      .field('content', 'Some content')
+      .attach('files', TINY_PNG, { filename: 'file.png', contentType: 'image/png' });
+
+    expect(created.body.attachments).toHaveLength(1);
+    const id = created.body._id as string;
+
+    const res = await request(app)
+      .put(`/api/news/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .field('attachmentsUpdated', 'true');
+
+    expect(res.status).toBe(200);
+    expect(res.body.attachments).toEqual([]);
+  });
+
+  it('preserves Cyrillic characters in the stored attachment filename', async () => {
+    const created = await request(app)
+      .post('/api/news')
+      .set('Authorization', `Bearer ${token}`)
+      .field('title', 'With Cyrillic attachment')
+      .field('content', 'Some content')
+      .attach('files', TINY_PNG, { filename: 'Отчёт.png', contentType: 'image/png' });
+
+    expect(created.status).toBe(201);
+    const [attachmentUrl] = created.body.attachments as string[];
+    expect(attachmentUrl).toContain('Отчёт');
   });
 });
 

@@ -1,8 +1,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { AxiosError } from 'axios'
 import { z } from 'zod'
 
+import { getErrorMessage } from '@/shared/lib/getErrorMessage'
 import { Button } from '@/shared/ui/Button'
 import { Input } from '@/shared/ui/Input'
 import { Label } from '@/shared/ui/Label'
@@ -30,7 +30,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   })
   const { mutate, isPending, error } = useLoginMutation()
 
-  const serverError = (error as AxiosError<{ message: string }> | null)?.response?.data?.message
+  const serverError = error ? getErrorMessage(error, 'Не удалось войти. Попробуйте ещё раз.') : null
 
   function onSubmit(data: FormValues) {
     mutate(data, { onSuccess })

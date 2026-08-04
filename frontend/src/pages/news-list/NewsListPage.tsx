@@ -21,7 +21,7 @@ const FILTERS: { label: string; value: FilterValue }[] = [
   { label: 'Опубликовано', value: 'published' },
 ]
 
-export function NewsListPage() {
+export default function NewsListPage() {
   const [filter, setFilter] = useState<FilterValue>('all')
   const [page, setPage] = useState(1)
 

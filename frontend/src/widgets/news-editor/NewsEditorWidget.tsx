@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useBlocker, useNavigate } from 'react-router-dom'
 import CharacterCount from '@tiptap/extension-character-count'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import Underline from '@tiptap/extension-underline'
-import { EditorContent, useEditor } from '@tiptap/react'
+import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
 import { X } from 'lucide-react'
@@ -22,6 +22,7 @@ import { FileUpload } from '@/shared/ui/FileUpload'
 import { ImageUpload } from '@/shared/ui/ImageUpload'
 import { Input } from '@/shared/ui/Input'
 import { Label } from '@/shared/ui/Label'
+import { TiptapContent } from '@/shared/ui/TiptapContent'
 
 import { EditorToolbar } from './EditorToolbar'
 import { PreviewModal } from './PreviewModal'
@@ -44,6 +45,7 @@ interface Props {
   initialContent?: string
   initialImageUrl?: string | null
   initialAttachments?: string[]
+  isPublished?: boolean
 }
 
 export function NewsEditorWidget({
@@ -52,6 +54,7 @@ export function NewsEditorWidget({
   initialContent = '',
   initialImageUrl = null,
   initialAttachments = [],
+  isPublished = false,
 }: Props) {
   const navigate = useNavigate()
   const { mutateAsync: createNews } = useCreateNews()
@@ -64,28 +67,43 @@ export function NewsEditorWidget({
   const [newFiles, setNewFiles] = useState<File[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
+
+  // Tracked via ref (not state) so that a save's synchronous `setIsDirty(false)` is
+  // visible immediately to the blocker predicate below, even though the `navigate('/')`
+  // that follows fires before React has re-rendered with the updated state.
+  const isDirtyRef = useRef(false)
+  function setIsDirty(value: boolean) {
+    isDirtyRef.current = value
+  }
 
   const editor = useEditor({
     extensions: EDITOR_EXTENSIONS,
     content: initialContent,
-    immediatelyRender: false,
     onUpdate: () => setIsDirty(true),
+  })
+
+  const characterCount = useEditorState({
+    editor,
+    // `editor.storage.characterCount` can be transiently absent — tiptap-react may briefly
+    // destroy and recreate the editor instance across quick mount/unmount cycles (e.g. the
+    // first time this route's lazy chunk loads), which resets storage to `{}`.
+    selector: ({ editor }) =>
+      (editor?.storage.characterCount?.characters() as number | undefined) ?? 0,
   })
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
-      if (!isDirty) return
+      if (!isDirtyRef.current) return
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [isDirty])
+  }, [])
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      isDirty && currentLocation.pathname !== nextLocation.pathname,
+      isDirtyRef.current && currentLocation.pathname !== nextLocation.pathname,
   )
 
   useEffect(() => {
@@ -106,6 +124,10 @@ export function NewsEditorWidget({
     } else if (newsId && coverUrl === null && initialImageUrl) {
       fd.append('removeImage', 'true')
     }
+    // Signal that this request carries the full desired attachments list, even if empty —
+    // otherwise removing the last attachment sends no `keepAttachments` field at all, which
+    // the backend can't tell apart from "attachments weren't touched".
+    if (newsId) fd.append('attachmentsUpdated', 'true')
     existingAttachments.forEach((url) => fd.append('keepAttachments', url))
     newFiles.forEach((f) => fd.append('files', f))
     return fd
@@ -200,10 +222,12 @@ export function NewsEditorWidget({
         <Label>Содержимое</Label>
         <div className="rounded-md border border-input">
           <EditorToolbar editor={editor} />
-          <EditorContent editor={editor} className="tiptap-content min-h-[300px] p-4" />
+          <TiptapContent className="min-h-[300px] p-4">
+            <EditorContent editor={editor} />
+          </TiptapContent>
           {editor && (
             <div className="border-t border-input px-4 py-1 text-xs text-muted-foreground">
-              {editor.storage.characterCount.characters() as number} символов
+              {characterCount} символов
             </div>
           )}
         </div>
@@ -218,7 +242,15 @@ export function NewsEditorWidget({
                 key={url}
                 className="flex items-center justify-between rounded bg-muted px-3 py-1 text-sm"
               >
-                <span className="truncate">{url.split('/').pop()}</span>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="truncate text-primary underline hover:no-underline"
+                >
+                  {url.split('/').pop()}
+                </a>
                 <button
                   type="button"
                   onClick={() => removeExistingAttachment(url)}
@@ -242,33 +274,37 @@ export function NewsEditorWidget({
         <Button onClick={onSaveDraft} disabled={isDisabled}>
           {isSaving ? 'Сохранение...' : 'Сохранить'}
         </Button>
-        <Button variant="outline" onClick={onPublish} disabled={isDisabled}>
-          Опубликовать
-        </Button>
-        <ScheduleEditorDialog
-          disabled={isDisabled}
-          onSchedule={async (publishAt) => {
-            setIsSaving(true)
-            try {
-              let id: string
-              try {
-                id = await handleSave()
-              } catch {
-                return // toast shown by mutation onError
-              }
-              try {
-                await newsApi.schedule(id, publishAt)
-                setIsDirty(false)
-                toast.success('Публикация запланирована')
-                navigate('/')
-              } catch (error) {
-                toast.error(getErrorMessage(error, 'Не удалось запланировать публикацию'))
-              }
-            } finally {
-              setIsSaving(false)
-            }
-          }}
-        />
+        {!isPublished && (
+          <>
+            <Button variant="outline" onClick={onPublish} disabled={isDisabled}>
+              Опубликовать
+            </Button>
+            <ScheduleEditorDialog
+              disabled={isDisabled}
+              onSchedule={async (publishAt) => {
+                setIsSaving(true)
+                try {
+                  let id: string
+                  try {
+                    id = await handleSave()
+                  } catch {
+                    return // toast shown by mutation onError
+                  }
+                  try {
+                    await newsApi.schedule(id, publishAt)
+                    setIsDirty(false)
+                    toast.success('Публикация запланирована')
+                    navigate('/')
+                  } catch (error) {
+                    toast.error(getErrorMessage(error, 'Не удалось запланировать публикацию'))
+                  }
+                } finally {
+                  setIsSaving(false)
+                }
+              }}
+            />
+          </>
+        )}
         <Button variant="outline" onClick={() => setIsPreviewOpen(true)}>
           Предпросмотр
         </Button>
@@ -287,7 +323,8 @@ export function NewsEditorWidget({
         title={title}
         coverUrl={coverFile ? URL.createObjectURL(coverFile) : coverUrl}
         contentHtml={editor?.getHTML() ?? ''}
-        attachmentUrls={[...existingAttachments, ...newFiles.map((f) => f.name)]}
+        existingAttachmentUrls={existingAttachments}
+        newFileNames={newFiles.map((f) => f.name)}
       />
     </div>
   )

@@ -1,8 +1,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { AxiosError } from 'axios'
 import { z } from 'zod'
 
+import { getErrorMessage } from '@/shared/lib/getErrorMessage'
 import { Button } from '@/shared/ui/Button'
 import { Input } from '@/shared/ui/Input'
 import { Label } from '@/shared/ui/Label'
@@ -36,7 +36,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   })
   const { mutate, isPending, error } = useRegisterMutation()
 
-  const serverError = (error as AxiosError<{ message: string }> | null)?.response?.data?.message
+  const serverError = error
+    ? getErrorMessage(error, 'Не удалось зарегистрироваться. Попробуйте ещё раз.')
+    : null
 
   function onSubmit({ email, password }: FormValues) {
     mutate({ email, password }, { onSuccess })

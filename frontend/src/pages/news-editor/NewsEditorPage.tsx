@@ -7,7 +7,7 @@ import { useNewsQuery } from '@/entities/news'
 
 import { Skeleton } from '@/shared/ui/Skeleton'
 
-export function NewsEditorPage() {
+export default function NewsEditorPage() {
   const { id } = useParams<{ id?: string }>()
   const { data: news, isLoading, isError } = useNewsQuery(id ?? '')
 
@@ -36,6 +36,7 @@ export function NewsEditorPage() {
             initialContent={news?.content}
             initialImageUrl={news?.imageUrl}
             initialAttachments={news?.attachments}
+            isPublished={news?.status === 'published'}
           />
         )}
       </main>

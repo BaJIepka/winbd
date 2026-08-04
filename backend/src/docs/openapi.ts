@@ -298,6 +298,6 @@ export function generateOpenApiDocument(): OpenAPIObject {
       version: '1.0.0',
       description: 'REST API for news articles with JWT auth, Socket.io notifications, and file uploads',
     },
-    servers: [{ url: 'http://localhost:5000' }],
+    servers: [{ url: '/' }],
   });
 }

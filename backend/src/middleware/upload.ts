@@ -8,7 +8,10 @@ const storage: StorageEngine = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    // Multer/busboy decode multipart header values as latin1 by default, so a UTF-8
+    // filename (e.g. Cyrillic) sent by the browser arrives mis-decoded — re-decode it.
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    const safeName = originalName.replace(/[^\p{L}\p{N}._-]/gu, '_');
     cb(null, `${Date.now()}-${safeName}`);
   },
 });

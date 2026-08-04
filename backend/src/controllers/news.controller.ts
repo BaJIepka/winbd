@@ -62,13 +62,16 @@ export async function update(req: AuthRequest, res: Response): Promise<void> {
   const attachmentFiles = files?.['files'];
   const raw = req.body.keepAttachments as string | string[] | undefined;
   const keepAttachments: string[] = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+  // Sent by the frontend whenever it submits the full desired attachments list, even when
+  // that list is empty — distinguishes "remove all attachments" from "field wasn't sent".
+  const attachmentsUpdated = req.body.attachmentsUpdated === 'true';
 
   const payload: newsService.UpdateNewsPayload = {};
   if (title) payload.title = title;
   if (content) payload.content = sanitizeContent(content);
   if (imageFile) payload.imageUrl = `/uploads/${imageFile.filename}`;
   if (req.body.removeImage === 'true') payload.imageUrl = null;
-  if (attachmentFiles?.length || keepAttachments.length) {
+  if (attachmentsUpdated || attachmentFiles?.length || keepAttachments.length) {
     payload.attachments = [
       ...keepAttachments,
       ...(attachmentFiles?.map((f) => `/uploads/${f.filename}`) ?? []),

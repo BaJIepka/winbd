@@ -1,5 +1,7 @@
 import { type ReactNode, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
+import { NEWS_KEY, NEWS_LIST_KEY } from '@/entities/news'
 import type { NotificationType } from '@/entities/notifications'
 import { useNotificationsStore } from '@/entities/notifications'
 import { useAuthStore } from '@/entities/user'
@@ -25,6 +27,7 @@ const EVENT_LABELS: Record<NotificationType, string> = {
 export function SocketProvider({ children }: { children: ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken)
   const addNotification = useNotificationsStore((s) => s.addNotification)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (accessToken) {
@@ -45,6 +48,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           newsId: payload._id,
           newsTitle: payload.title,
         })
+        // These events can originate from another tab/user or the server-side scheduler,
+        // so the local query cache needs to be invalidated explicitly — it won't happen
+        // as a side effect of an HTTP mutation the way it does for the acting client.
+        void queryClient.invalidateQueries({ queryKey: [NEWS_LIST_KEY] })
+        void queryClient.invalidateQueries({ queryKey: [NEWS_KEY, payload._id] })
       }
     }
 
@@ -55,6 +63,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         newsId: payload.newsId,
         newsTitle: '',
       })
+      void queryClient.invalidateQueries({ queryKey: [NEWS_LIST_KEY] })
     }
 
     socket.on('news:created', handleNews('news:created'))
@@ -68,7 +77,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socket.off('news:published')
       socket.off('news:deleted')
     }
-  }, [addNotification])
+  }, [addNotification, queryClient])
 
   return <>{children}</>
 }

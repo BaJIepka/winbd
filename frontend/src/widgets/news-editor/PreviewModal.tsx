@@ -3,6 +3,7 @@ import { Paperclip, X } from 'lucide-react'
 
 import { sanitizeHtml } from '@/shared/lib/sanitizeHtml'
 import { Button } from '@/shared/ui/Button'
+import { TiptapContent } from '@/shared/ui/TiptapContent'
 
 interface Props {
   open: boolean
@@ -10,7 +11,8 @@ interface Props {
   title: string
   coverUrl: string | null
   contentHtml: string
-  attachmentUrls: string[]
+  existingAttachmentUrls: string[]
+  newFileNames: string[]
 }
 
 export function PreviewModal({
@@ -19,7 +21,8 @@ export function PreviewModal({
   title,
   coverUrl,
   contentHtml,
-  attachmentUrls,
+  existingAttachmentUrls,
+  newFileNames,
 }: Props) {
   const cleanHtml = sanitizeHtml(contentHtml)
 
@@ -53,22 +56,37 @@ export function PreviewModal({
             </h1>
 
             {cleanHtml ? (
-              <div
-                className="tiptap-content prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: cleanHtml }}
-              />
+              <TiptapContent className="prose max-w-none" html={cleanHtml} />
             ) : (
               <p className="text-muted-foreground italic">Содержимое пустое</p>
             )}
 
-            {attachmentUrls.length > 0 && (
+            {(existingAttachmentUrls.length > 0 || newFileNames.length > 0) && (
               <div className="mt-8 border-t border-input pt-4">
                 <p className="mb-2 text-sm font-medium text-muted-foreground">Вложения</p>
                 <ul className="flex flex-col gap-1">
-                  {attachmentUrls.map((url) => (
+                  {existingAttachmentUrls.map((url) => (
                     <li key={url} className="flex items-center gap-2 text-sm">
                       <Paperclip size={14} className="shrink-0 text-muted-foreground" />
-                      <span className="truncate">{url.split('/').pop()}</span>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className="truncate text-primary underline hover:no-underline"
+                      >
+                        {url.split('/').pop()}
+                      </a>
+                    </li>
+                  ))}
+                  {newFileNames.map((name) => (
+                    <li
+                      key={name}
+                      className="flex items-center gap-2 text-sm text-muted-foreground"
+                    >
+                      <Paperclip size={14} className="shrink-0" />
+                      <span className="truncate">{name}</span>
+                      <span className="shrink-0 text-xs italic">(новый, ещё не сохранён)</span>
                     </li>
                   ))}
                 </ul>
